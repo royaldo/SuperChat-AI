@@ -2,11 +2,10 @@ import express from 'express';
 import cors from 'cors';
 import multer from 'multer';
 import { GoogleGenAI } from '@google/genai';
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import 'dotenv/config';
 
 const app = express();
-const ai = new GoogleGenAI({});
+const ai = new GoogleGenAI(process.env.GEMINI_API_KEY);
 
 app.use(cors());
 //app.use(multer());
@@ -21,66 +20,32 @@ app.post(
     '/chat', 
     async (req, res) => {
         const { body } = req;
-        const { conversation } = body;
         const { history, message } = body;
 
-        if(!conversation || !Array.isArray(conversation)){
+        if(!history || !Array.isArray(history) || !message || typeof message !== 'string'){
             res.status(400).json({
-                message: "Percakapan harus valid.",
+                message: "Invalid request body. 'history' (array) and 'message' (string) are required.",
                 data: null,
                 success: false
             });
             return;
         }
 
-        const conversationIsValid = conversation.every((message) => {
-            if(!message) return false;
-            if(typeof message !== 'object' || Array.isArray(message)) return false;
-            const keys = Object.keys(message);
-            const keyLengthIsValid = keys.length === 2;
-            const keyContainsValidName = keys.every(key => ['role', 'text'].includes(key));
-
-            if(!keyLengthIsValid || !keyContainsValidName) return false;
-
-            const { role, text } = message;
-            const roleIsValid = ['user', 'text'].includes(role);
-            const textIsValid = typeof text === 'string';
-
-            if(!roleIsValid || !textIsValid) return false;
-
-            return true;
-        });
-
-        if(!conversationIsValid){
-            res.status(400).json({
-                message: "Percakapan harus valid.",
-                data: null,
-                success: false
         try {
-            // Start a chat with the provided history
-            const chat = model.startChat({
-                history: history,
-            });
-            return;
-        }
+            // Combine the history and the new message into the format generateContent expects
+            const contents = [
+                ...history,
+                { role: 'user', parts: [{ text: message }] }
+            ];
 
-        const contents = conversation.map(({ role, text }) => ({
-            role,
-            parts: [{text}]
-        }));
-            const result = await chat.sendMessage(message);
-            const response = await result.response;
-            const text = response.text();
-
-        try {
-            const aiResponse = await ai.models.generateContent({
+            const response = await ai.models.generateContent({
                 model: 'gemini-2.5-flash',
-                contents
+                contents: contents,
             });
+            const text = response.text;
 
             res.status(200).json({
                 message: "Berhasil ditanggapi Google Gemini Flash!",
-                data: aiResponse.text,
                 data: text,
                 success: true
             })
