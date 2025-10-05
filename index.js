@@ -10,6 +10,7 @@ const ai = new GoogleGenAI({});
 app.use(cors());
 //app.use(multer());
 app.use(express.json());
+app.use(express.static('public'));
 
 app.listen(3000, () => {
     console.log("Successfully Run App at Port: 3000");
@@ -19,25 +20,53 @@ app.post(
     '/chat', 
     async (req, res) => {
         const { body } = req;
-        const { prompt } = body;
+        const { conversation } = body;
 
-        if(!prompt || typeof prompt !== 'string'){
+        if(!conversation || !Array.isArray(conversation)){
             res.status(400).json({
-                message: "Prompt harus diisi dan berupa string.",
+                message: "Percakapan harus valid.",
                 data: null,
                 success: false
             });
             return;
         }
 
+        const conversationIsValid = conversation.every((message) => {
+            if(!message) return false;
+            if(typeof message !== 'object' || Array.isArray(message)) return false;
+            const keys = Object.keys(message);
+            const keyLengthIsValid = keys.length === 2;
+            const keyContainsValidName = keys.every(key => ['role', 'text'].includes(key));
+
+            if(!keyLengthIsValid || !keyContainsValidName) return false;
+
+            const { role, text } = message;
+            const roleIsValid = ['user', 'text'].includes(role);
+            const textIsValid = typeof text === 'string';
+
+            if(!roleIsValid || !textIsValid) return false;
+
+            return true;
+        });
+
+        if(!conversationIsValid){
+            res.status(400).json({
+                message: "Percakapan harus valid.",
+                data: null,
+                success: false
+            });
+            return;
+        }
+
+        const contents = conversation.map(({ role, text }) => ({
+            role,
+            parts: [{text}]
+        }));
+
         try {
             const aiResponse = await ai.models.generateContent({
                 model: 'gemini-2.5-flash',
-                contents: [
-                    { parts : [
-                        { text: prompt }
-                    ] }
-                ]
+                contents
             });
 
             res.status(200).json({
