@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import multer from 'multer';
 import { GoogleGenAI } from '@google/genai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import 'dotenv/config';
 
 const app = express();
@@ -21,6 +22,7 @@ app.post(
     async (req, res) => {
         const { body } = req;
         const { conversation } = body;
+        const { history, message } = body;
 
         if(!conversation || !Array.isArray(conversation)){
             res.status(400).json({
@@ -54,6 +56,10 @@ app.post(
                 message: "Percakapan harus valid.",
                 data: null,
                 success: false
+        try {
+            // Start a chat with the provided history
+            const chat = model.startChat({
+                history: history,
             });
             return;
         }
@@ -62,6 +68,9 @@ app.post(
             role,
             parts: [{text}]
         }));
+            const result = await chat.sendMessage(message);
+            const response = await result.response;
+            const text = response.text();
 
         try {
             const aiResponse = await ai.models.generateContent({
@@ -72,6 +81,7 @@ app.post(
             res.status(200).json({
                 message: "Berhasil ditanggapi Google Gemini Flash!",
                 data: aiResponse.text,
+                data: text,
                 success: true
             })
         } catch (e) {
